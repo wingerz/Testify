@@ -126,7 +126,7 @@ class TestRunner(object):
                         self.logger.report_test_name(result.test_method)
                         self.logger.report_test_result(result)
                         results.append(result)
-                    if not result.success and not TestCase.in_suite(result.test_method, 'expected-failure'):
+                    if not result.success:
                         self.logger.failure(result)
 
                 test_case.register_callback(test_case.EVENT_ON_COMPLETE_TEST_METHOD, _append_relevant_results_and_log_relevant_failures)
@@ -155,10 +155,7 @@ class TestRunner(object):
         results_by_status = defaultdict(list)
         for result in results:
             if result.success:
-                if result.unexpected_success:
-                    results_by_status['unexpected_success'].append(result)
-                else:
-                    results_by_status['successful'].append(result)
+                results_by_status['successful'].append(result)
             elif result.failure or result.error:
                 results_by_status['failed'].append(result)
             elif result.incomplete:
