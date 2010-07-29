@@ -71,6 +71,7 @@ def parse_test_runner_command_line_args(args):
     parser.add_option("--list-tests", action="store_true", dest="list_tests")
 
     parser.add_option("--label", action="store", dest="label", type="string", help="label for this test run")
+    parser.add_option("--extra-json-info", action="store", dest="extra_json_info", type="string", help="json containing some extra info to be stored")
     parser.add_option("--bucket", action="store", dest="bucket", type="int")
     parser.add_option("--bucket-count", action="store", dest="bucket_count", type="int")
     parser.add_option("--bucket-overrides-file", action="store", dest="bucket_overrides_file", default=None)

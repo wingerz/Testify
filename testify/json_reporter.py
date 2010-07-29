@@ -49,6 +49,10 @@ class JSONReporter(test_reporter.TestReporter):
 
         if self.options.label:
             out_result['label'] = self.options.label
+        if self.options.extra_json_info:
+			if not hasattr(self.options, 'parsed_extra_json_info'):
+				self.options.parsed_extra_json_info = simplejson.loads(self.options.extra_json_info)
+			out_result.update(self.options.parsed_extra_json_info)
         if self.options.bucket is not None:
             out_result['bucket'] = self.options.bucket
         if self.options.bucket_count is not None:
