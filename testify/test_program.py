@@ -95,12 +95,12 @@ def parse_test_runner_command_line_args(args):
     
     reporters = []
     if options.disable_color:
-        reporters.append(test_logger.ColorlessTextTestLogger(options.verbosity))
+        reporters.append(test_logger.ColorlessTextTestLogger(options))
     else:
-        reporters.append(test_logger.TextTestLogger(options.verbosity))
+        reporters.append(test_logger.TextTestLogger(options))
     
     if options.json_results:
-        reporters.append(json_reporter.JsonTestReporter(options.json_results))
+        reporters.append(json_reporter.JsonTestReporter(options))
     
     test_runner_args = {
         'suites_include': options.suites_include,

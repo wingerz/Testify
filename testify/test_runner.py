@@ -76,26 +76,6 @@ class TestRunner(object):
     def add_test_case(self, module):
         self.test_case_classes.append(module)
 
-    def _report_test_name(self, method):
-        for reporter in self.test_reporters:
-            reporter.report_test_name(method)
-
-    def _report_test_result(self, result):
-        for reporter in self.test_reporters:
-            reporter.report_test_result(result)
-        
-    def _report_failure(self, result):
-        for reporter in self.test_reporters:
-            reporter.failure(result)
-        
-    def _report_failures(self, *args, **kwargs):
-        for reporter in self.test_reporters:
-            reporter.report_failures(*args, **kwargs)
-        
-    def _report_stats(self, *args, **kwargs):
-        for reporter in self.test_reporters:
-            reporter.report_stats(*args, **kwargs)
-
     def run(self):
         """Instantiate our found test case classes and run their test methods.
 
@@ -117,36 +97,13 @@ class TestRunner(object):
                     suites_include=self.suites_include,
                     suites_exclude=self.suites_exclude,
                     name_overrides=name_overrides)
+
                 if not any(test_case.runnable_test_methods()):
                     continue
 
-                # the TestCase on_run_test_method callback calls its registrants with
-                # the test method as the argument.
-                def _log_real_test_method_names(test_method):
-                    """Log the names of test methods before they are executed"""
-                    if not test_case.is_fixture_method(test_method) and not test_case.method_excluded(test_method):
-                        self._report_test_name(test_method)
-
-                test_case.register_callback(test_case.EVENT_ON_RUN_TEST_METHOD, _log_real_test_method_names)
-
-                # The TestCase on_complete_test_method callback calls its registrants
-                # with the result object as the argument.
-                def _append_relevant_results_and_log_relevant_failures(result):
-                    """Log the results of test methods."""
-                    if not test_case.is_fixture_method(result.test_method):
-                        if not test_case.method_excluded(result.test_method):
-                            self._report_test_result(result)
-                        results.append(result)
-                    elif result.test_method._fixture_type == 'class_teardown' and (result.failure or result.error):
-                        # For a class_teardown failure, log the name too (since it wouldn't have 
-                        # already been logged by on_run_test_method).
-                        self._report_test_name(result.test_method)
-                        self._report_test_result(result)
-                        results.append(result)
-                    if not result.success and not TestCase.in_suite(result.test_method, 'expected-failure'):
-                        self._report_test_failure(result)
-
-                test_case.register_callback(test_case.EVENT_ON_COMPLETE_TEST_METHOD, _append_relevant_results_and_log_relevant_failures)
+                for reporter in self.test_reporters:
+                    test_case.register_callback(test_case.EVENT_ON_RUN_TEST_METHOD, reporter.test_start)
+                    test_case.register_callback(test_case.EVENT_ON_COMPLETE_TEST_METHOD, reporter.test_complete)
 
                 # Now that we are going to run the actually test case, start tracking coverage if requested.
                 if self.coverage:
@@ -168,30 +125,9 @@ class TestRunner(object):
             # but still get a testing summary.
             pass
 
-        # All the TestCases have been run - now collate results by status and log them
-        results_by_status = defaultdict(list)
-        for result in results:
-            if result.success:
-                if result.unexpected_success:
-                    results_by_status['unexpected_success'].append(result)
-                else:
-                    results_by_status['successful'].append(result)
-            elif result.failure or result.error:
-                results_by_status['failed'].append(result)
-            elif result.incomplete:
-                results_by_status['incomplete'].append(result)
-            else:
-                results_by_status['unknown'].append(result)
+        report = [reporter.report() for reporter in self.test_reporters]
+        return all(report)
 
-        # TODO: Abstract this
-        #self._report_run_complete()
-
-        if self.summary_mode:
-            self._report_failures(results_by_status['failed'])
-        self._report_stats(len(self.test_case_classes), **results_by_status)
-
-        return bool((len(results_by_status['failed']) + len(results_by_status['unknown'])) == 0)
-    
     def list_suites(self):
         """List the suites represented by this TestRunner's tests."""
         suites = defaultdict(list)

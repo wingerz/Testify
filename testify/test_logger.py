@@ -19,8 +19,9 @@ __testify = 1
 import datetime
 import operator
 import traceback
-
+import sys
 import logging
+import collections
 from IPython import ultraTB
 
 from testify import test_reporter
@@ -35,7 +36,129 @@ VERBOSITY_SILENT    = 0  # Don't say anything, just exit with a status code
 VERBOSITY_NORMAL    = 1  # Output dots for each test method run
 VERBOSITY_VERBOSE   = 2  # Output method names and timing information
 
-class TextTestLogger(test_reporter.TestReporterBase):
+class TestLoggerBase(test_reporter.TestReporter):
+    traceback_formater = staticmethod(traceback.format_exception)
+
+    def __init__(self, options, stream=sys.stdout):
+        self.options = options
+        self.stream = stream
+        self.results = []
+        self.test_case_classes = set()
+
+    def test_start(self, test_case, test_method):
+        self.test_case_classes.add(test_case.__class__)
+        if not test_case.is_fixture_method(test_method) and not test_case.method_excluded(test_method):
+            self.report_test_name(test_method)
+
+    def test_complete(self, test_case, result):
+        if not test_case.is_fixture_method(result.test_method):
+            if not test_case.method_excluded(result.test_method):
+                self.report_test_result(result)
+            self.results.append(result)
+        elif result.test_method._fixture_type == 'class_teardown' and (result.failure or result.error):
+            # For a class_teardown failure, log the name too (since it wouldn't have 
+            # already been logged by on_run_test_method).
+            self.report_test_name(result.test_method)
+            self.report_test_result(result)
+
+            self.results.append(result)
+
+        if not result.success and not TestCase.in_suite(result.test_method, 'expected-failure'):
+            self.report_failure(result)
+
+    def report(self):
+        # All the TestCases have been run - now collate results by status and log them
+        results_by_status = collections.defaultdict(list)
+        for result in self.results:
+            if result.success:
+                if result.unexpected_success:
+                    results_by_status['unexpected_success'].append(result)
+                else:
+                    results_by_status['successful'].append(result)
+            elif result.failure or result.error:
+                results_by_status['failed'].append(result)
+            elif result.incomplete:
+                results_by_status['incomplete'].append(result)
+            else:
+                results_by_status['unknown'].append(result)
+
+        if self.options.summary_mode:
+            self.report_failures(results_by_status['failed'])
+        self.report_stats(len(self.test_case_classes), **results_by_status)
+
+        return bool((len(results_by_status['failed']) + len(results_by_status['unknown'])) == 0)
+
+    def report_test_name(self, test_name): 
+        pass
+    def report_test_result(self, result):
+        pass
+
+    def report_failures(self, failed_results):
+        results = {
+            'FAILURES': [],
+            'EXPECTED_FAILURES': []
+            }
+        
+        [results['EXPECTED_FAILURES'].append(result) if result.expected_failure else results['FAILURES'].append(result) for result in failed_results]
+
+        if results['EXPECTED_FAILURES']:
+            self.heading('EXPECTED FAILURES', 'The following tests have been marked expected-failure.')
+            for result in results['EXPECTED_FAILURES']:
+                self.failure(result)
+
+        if results['FAILURES']:
+            self.heading('FAILURES', 'The following tests are expected to pass.')
+            for result in results['FAILURES']:
+                self.failure(result)
+        else:
+            # throwing this in so that someone looking at the bottom of the
+            # output won't have to scroll up to figure out whether failures
+            # were expected or not.
+            self.heading('FAILURES', 'None!')
+        
+    def report_failure(self, result): 
+        pass
+
+    def report_stats(self, test_case_count, all_results, failed_results, unknown_results):
+        pass
+
+    def _format_test_method_name(self, test_method):
+        """Take a test method as input and return a string for output"""
+        out = []
+        if test_method.im_class.__module__ != "__main__":
+            out.append("%s " % test_method.im_class.__module__)
+        out.append("%s.%s" % (test_method.im_class.__name__, test_method.__name__))
+
+        return''.join(out)
+
+    # Helper methods for extracting relevant entries from a stack trace
+    def _format_exception_info(self, exception_info_tuple):
+        exctype, value, tb = exception_info_tuple
+        # Skip test runner traceback levels
+        while tb and self.__is_relevant_tb_level(tb):
+            tb = tb.tb_next
+        if exctype is AssertionError:
+            # Skip testify.assertions traceback levels
+            length = self.__count_relevant_tb_levels(tb)
+            return self.traceback_formater(exctype, value, tb, length)
+
+        if not tb:
+            return "Exception: %r (%r)" % (exctype, value)
+
+        return self.traceback_formater(exctype, value, tb)
+
+    def __is_relevant_tb_level(self, tb):
+        return tb.tb_frame.f_globals.has_key('__testify')
+
+    def __count_relevant_tb_levels(self, tb):
+        length = 0
+        while tb and not self.__is_relevant_tb_level(tb):
+            length += 1
+            tb = tb.tb_next
+        return length
+
+
+class TextTestLogger(TestLoggerBase):
     traceback_formater = staticmethod(ultraTB.ColorTB().text)
 
     def write(self, message):
@@ -60,22 +183,22 @@ class TextTestLogger(test_reporter.TestReporterBase):
 
     def report_test_name(self, test_method):
         _log.info("running: %s", self._format_test_method_name(test_method))
-        if self.verbosity >= VERBOSITY_VERBOSE:
+        if self.options.verbosity >= VERBOSITY_VERBOSE:
             self.write("%s ... " % self._format_test_method_name(test_method))
 
     def report_test_result(self, result):
-        if self.verbosity > VERBOSITY_SILENT:
+        if self.options.verbosity > VERBOSITY_SILENT:
 
             if result.success:
                 if not result.unexpected_success:
                     _log.info("success: %s", self._format_test_method_name(result.test_method))
-                    if self.verbosity == VERBOSITY_NORMAL:
+                    if self.options.verbosity == VERBOSITY_NORMAL:
                         self.write(self._colorize('.', self.GREEN))
                     else:
                         self.writeln("%s in %s" % (self._colorize('ok', self.GREEN), result.normalized_run_time()))
                 else:
                     _log.info("unexpected success: %s", self._format_test_method_name(result.test_method))
-                    if self.verbosity == VERBOSITY_NORMAL:
+                    if self.options.verbosity == VERBOSITY_NORMAL:
                         self.write(self._colorize('.', self.RED))
                     else:
                         self.writeln("%s in %s" % (self._colorize('UNEXPECTED SUCCESS', self.RED), result.normalized_run_time()))
@@ -83,13 +206,13 @@ class TextTestLogger(test_reporter.TestReporterBase):
             elif result.failure:
                 if result.test_method.im_class.in_suite(result.test_method, 'expected-failure'):
                     _log.error("fail (expected): %s", self._format_test_method_name(result.test_method), exc_info=result.exception_info)
-                    if self.verbosity == VERBOSITY_NORMAL:
+                    if self.options.verbosity == VERBOSITY_NORMAL:
                         self.write(self._colorize('f', self.RED))
                     else:
                         self.writeln("%s in %s" % (self._colorize("FAIL (EXPECTED)", self.RED), result.normalized_run_time()))
                 else:
                     _log.error("fail: %s", self._format_test_method_name(result.test_method), exc_info=result.exception_info)
-                    if self.verbosity == VERBOSITY_NORMAL:
+                    if self.options.verbosity == VERBOSITY_NORMAL:
                         self.write(self._colorize('F', self.RED))
                     else:
                         self.writeln("%s in %s" % (self._colorize("FAIL", self.RED), result.normalized_run_time()))
@@ -97,27 +220,27 @@ class TextTestLogger(test_reporter.TestReporterBase):
             elif result.error:
                 if result.test_method.im_class.in_suite(result.test_method, 'expected-failure'):
                     _log.error("error (expected): %s", self._format_test_method_name(result.test_method), exc_info=result.exception_info)
-                    if self.verbosity == VERBOSITY_NORMAL:
+                    if self.options.verbosity == VERBOSITY_NORMAL:
                         self.write(self._colorize('e', self.RED))
                     else:
                         self.writeln("%s in %s" % (self._colorize("ERROR (EXPECTED)", self.RED), result.normalized_run_time()))
                 else:
                     _log.error("error: %s", self._format_test_method_name(result.test_method), exc_info=result.exception_info)
-                    if self.verbosity == VERBOSITY_NORMAL:
+                    if self.options.verbosity == VERBOSITY_NORMAL:
                         self.write(self._colorize('E', self.RED))
                     else:
                         self.writeln("%s in %s" % (self._colorize("ERROR", self.RED), result.normalized_run_time()))
 
             elif result.incomplete:
                 _log.info("incomplete: %s", self._format_test_method_name(result.test_method))
-                if self.verbosity == VERBOSITY_NORMAL:
+                if self.options.verbosity == VERBOSITY_NORMAL:
                     self.write(self._colorize('-', self.YELLOW))
                 else:
                     self.writeln(self._colorize('INCOMPLETE', self.YELLOW))
 
             else:
                 _log.info("unknown: %s", self._format_test_method_name(result.test_method))
-                if self.verbosity == VERBOSITY_NORMAL:
+                if self.options.verbosity == VERBOSITY_NORMAL:
                     self.write('?')
                 else:
                     self.writeln('UNKNOWN')
