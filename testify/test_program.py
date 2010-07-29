@@ -59,7 +59,8 @@ def parse_test_runner_command_line_args(args):
 
     parser.add_option("-c", "--coverage", action="store_true", dest="coverage")
     parser.add_option("-p", "--profile", action="store_true", dest="profile")
-    parser.add_option("--json-results", action="store", dest="json_results", default=None)
+    parser.add_option("--json-results", action="store", dest="json_results", type="string", default=None, help="Store test results in json format")
+    
 
     parser.add_option("-i", "--include-suite", action="append", dest="suites_include", type="string", default=[])
     parser.add_option("-x", "--exclude-suite", action="append", dest="suites_exclude", type="string", default=[])
@@ -67,6 +68,7 @@ def parse_test_runner_command_line_args(args):
     parser.add_option("--list-suites", action="store_true", dest="list_suites")
     parser.add_option("--list-tests", action="store_true", dest="list_tests")
 
+    parser.add_option("--label", action="store", dest="label", type="string", help="label for this test run")
     parser.add_option("--bucket", action="store", dest="bucket", type="int")
     parser.add_option("--bucket-count", action="store", dest="bucket_count", type="int")
     parser.add_option("--bucket-overrides-file", action="store", dest="bucket_overrides_file", default=None)
@@ -100,7 +102,7 @@ def parse_test_runner_command_line_args(args):
         reporters.append(test_logger.TextTestLogger(options))
     
     if options.json_results:
-        reporters.append(json_reporter.JsonTestReporter(options))
+        reporters.append(json_reporter.JSONReporter(options))
     
     test_runner_args = {
         'suites_include': options.suites_include,
