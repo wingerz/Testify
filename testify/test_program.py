@@ -31,6 +31,8 @@ ACTION_RUN_TESTS = 0
 ACTION_LIST_SUITES = 1
 ACTION_LIST_TESTS = 2
 
+log = logging.getLogger('testify')
+
 def get_bucket_overrides(filename):
     """Returns a map from test class name to test bucket.
 
@@ -60,7 +62,7 @@ def parse_test_runner_command_line_args(args):
     parser.add_option("-c", "--coverage", action="store_true", dest="coverage")
     parser.add_option("-p", "--profile", action="store_true", dest="profile")
     parser.add_option("--json-results", action="store", dest="json_results", type="string", default=None, help="Store test results in json format")
-    
+    parser.add_option("--json-results-logging", action="store_true", dest="json_results_logging", default=False, help="Store log output for failed test results in json")
 
     parser.add_option("-i", "--include-suite", action="append", dest="suites_include", type="string", default=[])
     parser.add_option("-x", "--exclude-suite", action="append", dest="suites_exclude", type="string", default=[])
@@ -136,8 +138,6 @@ def _parse_test_runner_command_line_module_method_overrides(args):
     return test_path, module_method_overrides
 
 class TestProgram(object):
-    log = class_logger.ClassLogger()
-
     def __init__(self, command_line_args=None):
         """Initialize and run the test with the given command_line_args
             command_line_args will be passed to parser.parse_args
@@ -157,7 +157,7 @@ class TestProgram(object):
         try:
             runner.discover(test_path, bucket=other_opts.bucket, bucket_count=other_opts.bucket_count, bucket_overrides=bucket_overrides)
         except test_discovery.DiscoveryError, e:
-            self.log.error("Failure loading tests: %s", e)
+            log.error("Failure loading tests: %s", e)
             sys.exit(1)
 
         if runner_action == ACTION_LIST_SUITES:
@@ -167,11 +167,17 @@ class TestProgram(object):
             runner.list_tests()
             sys.exit(0)
         elif runner_action == ACTION_RUN_TESTS:
+            label_text = ""
+            bucket_text = ""
+            if other_opts.label:
+                label_text = " " + other_opts.label
+            if other_opts.bucket_count:
+                bucket_text = " (bucket %d of %d)" % (other_opts.bucket, other_opts.bucket_count)
+            log.info("starting test run%s%s", label_text, bucket_text)
             result = runner.run()
             sys.exit(not result)
 
     def setup_logging(self, options):
-        
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.DEBUG)
 
@@ -179,17 +185,15 @@ class TestProgram(object):
         console.setFormatter(logging.Formatter("%(levelname)-8s %(message)s"))
         console.setLevel(logging.WARNING)
         root_logger.addHandler(console)
-                
-        if options.log_file is None:
-            return
 
-        handler = logging.FileHandler(options.log_file, "a")
-        handler.setFormatter(logging.Formatter('%(asctime)s\t%(name)-12s: %(levelname)-8s %(message)s'))
+        if options.log_file:
+            handler = logging.FileHandler(options.log_file, "a")
+            handler.setFormatter(logging.Formatter('%(asctime)s\t%(name)-12s: %(levelname)-8s %(message)s'))
         
-        log_level = getattr(logging, options.log_level)
-        handler.setLevel(log_level)
+            log_level = getattr(logging, options.log_level)
+            handler.setLevel(log_level)
         
-        root_logger.addHandler(handler)
+            root_logger.addHandler(handler)
 
         
 if __name__ == "__main__":

@@ -323,3 +323,9 @@ class ColorlessTextTestLogger(TextTestLogger):
 
     def _colorize(self, message, color=None):
         return message
+
+
+class TestResultGrabberHandler(logging.Handler):
+    """Logging handler to store log message during a test run"""
+    def emit(self, record):
+        raise Exception(repr(record))

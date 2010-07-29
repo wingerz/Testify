@@ -1,7 +1,23 @@
+import logging
+
 import simplejson
 
 from testify import test_reporter
 from testify.utils import exception
+
+class ResultLogHandler(logging.Handler):
+    """Log Handler to collect log output during a test run"""
+    def __init__(self, *args, **kwargs):
+        logging.Handler.__init__(self, *args, **kwargs)
+        
+        self.records = []
+        
+    def emit(self, record):
+        self.records.append(record)
+
+    def results(self):
+        return [self.formatter.format(rec) for rec in self.records]
+            
 
 class JSONReporter(test_reporter.TestReporter):
     def __init__(self, *args, **kwargs):
@@ -9,7 +25,24 @@ class JSONReporter(test_reporter.TestReporter):
         
         # Time to open a log file
         self.log_file = open(self.options.json_results, "a")
-    
+        
+        # We also want to track log output
+        self.log_hndl = None
+        self._reset_logging()
+
+    def _reset_logging(self):
+        root = logging.getLogger('')
+        if self.log_hndl:
+            # Remove it if we already have one
+            root.removeHandler(self.log_hndl)
+        
+        # Create a new one
+        if self.options.json_results_logging:
+            self.log_hndl = ResultLogHandler(logging.Handler)
+            self.log_hndl.setLevel(self.options.verbosity)
+            self.log_hndl.setFormatter(logging.Formatter('%(asctime)s\t%(name)-12s: %(levelname)-8s %(message)s'))
+            root.addHandler(self.log_hndl)
+
     def test_complete(self, test_case, result):
         """Called when a test case is complete"""
         out_result = {}
@@ -38,10 +71,14 @@ class JSONReporter(test_reporter.TestReporter):
         if not result.success:
             out_result['tb'] = exception.format_exception_info(result.exception_info)
             out_result['error'] = str(out_result['tb'][-1]).strip()
+            if self.log_hndl:
+                out_result['log'] = self.log_hndl.results()
 
         self.log_file.write(simplejson.dumps(out_result, indent=1))
         self.log_file.write("\n")
-    
+        
+        self._reset_logging()
+        
     def test_report(self):
         self.log_file.close()
 
