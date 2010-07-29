@@ -25,6 +25,7 @@ import collections
 from IPython import ultraTB
 
 from testify import test_reporter
+from testify.test_case import TestCase
 
 # from test_case import TestCase
 

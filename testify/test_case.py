@@ -29,7 +29,6 @@ import sys
 import traceback
 import types
 
-from test_logger import _log
 from test_result import TestResult
 import deprecated_assertions
 from testify.utils import class_logger
