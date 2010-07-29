@@ -74,7 +74,7 @@ class JSONReporter(test_reporter.TestReporter):
             if self.log_hndl:
                 out_result['log'] = self.log_hndl.results()
 
-        self.log_file.write(simplejson.dumps(out_result, indent=1))
+        self.log_file.write(simplejson.dumps(out_result))
         self.log_file.write("\n")
         
         self._reset_logging()
