@@ -21,7 +21,8 @@ import sys
 import logging
 
 import testify
-from testify.test_logger import TextTestLogger, ColorlessTextTestLogger, VERBOSITY_NORMAL, VERBOSITY_SILENT, VERBOSITY_VERBOSE
+from testify import test_logger
+from testify import json_reporter
 from testify.test_runner import TestRunner
 from testify import test_discovery
 from testify.utils import class_logger
@@ -52,12 +53,13 @@ def parse_test_runner_command_line_args(args):
     """Parse command line args for the TestRunner to determine verbosity and other stuff"""
     parser = OptionParser(usage="%prog <test path> [options]", version="%%prog %s" % testify.__version__)
 
-    parser.set_defaults(verbosity=VERBOSITY_NORMAL)
-    parser.add_option("-s", "--silent", action="store_const", const=VERBOSITY_SILENT, dest="verbosity")
-    parser.add_option("-v", "--verbose", action="store_const", const=VERBOSITY_VERBOSE, dest="verbosity")
+    parser.set_defaults(verbosity=test_logger.VERBOSITY_NORMAL)
+    parser.add_option("-s", "--silent", action="store_const", const=test_logger.VERBOSITY_SILENT, dest="verbosity")
+    parser.add_option("-v", "--verbose", action="store_const", const=test_logger.VERBOSITY_VERBOSE, dest="verbosity")
 
     parser.add_option("-c", "--coverage", action="store_true", dest="coverage")
     parser.add_option("-p", "--profile", action="store_true", dest="profile")
+    parser.add_option("--json-results", action="store", dest="json_results", default=None)
 
     parser.add_option("-i", "--include-suite", action="append", dest="suites_include", type="string", default=[])
     parser.add_option("-x", "--exclude-suite", action="append", dest="suites_exclude", type="string", default=[])
@@ -91,15 +93,23 @@ def parse_test_runner_command_line_args(args):
     else:
         runner_action = ACTION_RUN_TESTS
     
+    reporters = []
+    if options.disable_color:
+        reporters.append(test_logger.ColorlessTextTestLogger(options.verbosity))
+    else:
+        reporters.append(test_logger.TextTestLogger(options.verbosity))
+    
+    if options.json_results:
+        reporters.append(json_reporter.JsonTestReporter(options.json_results))
+    
     test_runner_args = {
-        'verbosity': options.verbosity,
         'suites_include': options.suites_include,
         'suites_exclude': options.suites_exclude,
         'coverage': options.coverage,
         'profile': options.profile,
         'module_method_overrides': module_method_overrides,
         'summary_mode': options.summary_mode,
-        'test_logger_class': (TextTestLogger if not options.disable_color else ColorlessTextTestLogger)
+        'test_reporters': reporters
         }
 
     return runner_action, test_path, test_runner_args, options

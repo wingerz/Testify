@@ -41,23 +41,20 @@ class TestRunner(object):
     """
 
     def __init__(self,
-        verbosity=VERBOSITY_NORMAL,
-        suites_include=[],
-        suites_exclude=[],
-        coverage=False,
-        profile=False,
-        summary_mode=False,
-        test_logger_class=TextTestLogger,
-        module_method_overrides={}):
+                 suites_include=[],
+                 suites_exclude=[],
+                 coverage=False,
+                 profile=False,
+                 summary_mode=False,
+                 test_reporters=None,
+                 module_method_overrides={}):
         """After instantiating a TestRunner, call add_test_case() to add some tests, and run() to run them."""
-        self.verbosity = verbosity
-
         self.suites_include = set(suites_include)
         self.suites_exclude = set(suites_exclude)
 
         self.coverage = coverage
         self.profile = profile
-        self.logger = test_logger_class(self.verbosity)
+        self.test_reporters = test_reporters
         self.summary_mode = summary_mode
 
         self.module_method_overrides = module_method_overrides
@@ -78,6 +75,26 @@ class TestRunner(object):
 
     def add_test_case(self, module):
         self.test_case_classes.append(module)
+
+    def _report_test_name(self, method):
+        for reporter in self.test_reporters:
+            reporter.report_test_name(method)
+
+    def _report_test_result(self, result):
+        for reporter in self.test_reporters:
+            reporter.report_test_result(result)
+        
+    def _report_failure(self, result):
+        for reporter in self.test_reporters:
+            reporter.failure(result)
+        
+    def _report_failures(self, *args, **kwargs):
+        for reporter in self.test_reporters:
+            reporter.report_failures(*args, **kwargs)
+        
+    def _report_stats(self, *args, **kwargs):
+        for reporter in self.test_reporters:
+            reporter.report_stats(*args, **kwargs)
 
     def run(self):
         """Instantiate our found test case classes and run their test methods.
@@ -108,7 +125,7 @@ class TestRunner(object):
                 def _log_real_test_method_names(test_method):
                     """Log the names of test methods before they are executed"""
                     if not test_case.is_fixture_method(test_method) and not test_case.method_excluded(test_method):
-                        self.logger.report_test_name(test_method)
+                        self._report_test_name(test_method)
 
                 test_case.register_callback(test_case.EVENT_ON_RUN_TEST_METHOD, _log_real_test_method_names)
 
@@ -118,16 +135,16 @@ class TestRunner(object):
                     """Log the results of test methods."""
                     if not test_case.is_fixture_method(result.test_method):
                         if not test_case.method_excluded(result.test_method):
-                            self.logger.report_test_result(result)
+                            self._report_test_result(result)
                         results.append(result)
                     elif result.test_method._fixture_type == 'class_teardown' and (result.failure or result.error):
                         # For a class_teardown failure, log the name too (since it wouldn't have 
                         # already been logged by on_run_test_method).
-                        self.logger.report_test_name(result.test_method)
-                        self.logger.report_test_result(result)
+                        self._report_test_name(result.test_method)
+                        self._report_test_result(result)
                         results.append(result)
                     if not result.success and not TestCase.in_suite(result.test_method, 'expected-failure'):
-                        self.logger.failure(result)
+                        self._report_test_failure(result)
 
                 test_case.register_callback(test_case.EVENT_ON_COMPLETE_TEST_METHOD, _append_relevant_results_and_log_relevant_failures)
 
@@ -166,9 +183,12 @@ class TestRunner(object):
             else:
                 results_by_status['unknown'].append(result)
 
+        # TODO: Abstract this
+        #self._report_run_complete()
+
         if self.summary_mode:
-            self.logger.report_failures(results_by_status['failed'])
-        self.logger.report_stats(len(self.test_case_classes), **results_by_status)
+            self._report_failures(results_by_status['failed'])
+        self._report_stats(len(self.test_case_classes), **results_by_status)
 
         return bool((len(results_by_status['failed']) + len(results_by_status['unknown'])) == 0)
     

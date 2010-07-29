@@ -18,10 +18,12 @@ __testify = 1
 
 import datetime
 import operator
-import sys
 import traceback
+
 import logging
 from IPython import ultraTB
+
+from testify import test_reporter
 
 # from test_case import TestCase
 
@@ -33,78 +35,7 @@ VERBOSITY_SILENT    = 0  # Don't say anything, just exit with a status code
 VERBOSITY_NORMAL    = 1  # Output dots for each test method run
 VERBOSITY_VERBOSE   = 2  # Output method names and timing information
 
-class TestLoggerBase(object):
-    traceback_formater = staticmethod(traceback.format_exception)
-
-    def __init__(self, verbosity, stream=sys.stdout):
-        self.verbosity = verbosity
-        self.stream = stream
-
-    # These methods should be implemented by a TestLoggerBase subclass
-    def report_test_name(self, test_name): raise NotImplementedError
-    def report_test_result(self, result): raise NotImplementedError
-    def report_failures(self, failed_results):
-        results = {
-            'FAILURES': [],
-            'EXPECTED_FAILURES': []
-            }
-        
-        [results['EXPECTED_FAILURES'].append(result) if result.expected_failure else results['FAILURES'].append(result) for result in failed_results]
-
-        if results['EXPECTED_FAILURES']:
-            self.heading('EXPECTED FAILURES', 'The following tests have been marked expected-failure.')
-            for result in results['EXPECTED_FAILURES']:
-                self.failure(result)
-
-        if results['FAILURES']:
-            self.heading('FAILURES', 'The following tests are expected to pass.')
-            for result in results['FAILURES']:
-                self.failure(result)
-        else:
-            # throwing this in so that someone looking at the bottom of the
-            # output won't have to scroll up to figure out whether failures
-            # were expected or not.
-            self.heading('FAILURES', 'None!')
-        
-    def report_failure(self, result): raise NotImplementedError
-    def report_stats(self, test_case_count, all_results, failed_results, unknown_results): raise NotImplementedError
-
-    def _format_test_method_name(self, test_method):
-        """Take a test method as input and return a string for output"""
-        out = []
-        if test_method.im_class.__module__ != "__main__":
-            out.append("%s " % test_method.im_class.__module__)
-        out.append("%s.%s" % (test_method.im_class.__name__, test_method.__name__))
-
-        return''.join(out)
-
-    # Helper methods for extracting relevant entries from a stack trace
-    def _format_exception_info(self, exception_info_tuple):
-        exctype, value, tb = exception_info_tuple
-        # Skip test runner traceback levels
-        while tb and self.__is_relevant_tb_level(tb):
-            tb = tb.tb_next
-        if exctype is AssertionError:
-            # Skip testify.assertions traceback levels
-            length = self.__count_relevant_tb_levels(tb)
-            return self.traceback_formater(exctype, value, tb, length)
-
-        if not tb:
-            return "Exception: %r (%r)" % (exctype, value)
-
-        return self.traceback_formater(exctype, value, tb)
-
-    def __is_relevant_tb_level(self, tb):
-        return tb.tb_frame.f_globals.has_key('__testify')
-
-    def __count_relevant_tb_levels(self, tb):
-        length = 0
-        while tb and not self.__is_relevant_tb_level(tb):
-            length += 1
-            tb = tb.tb_next
-        return length
-        
-class TextTestLogger(TestLoggerBase):
+class TextTestLogger(test_reporter.TestReporterBase):
     traceback_formater = staticmethod(ultraTB.ColorTB().text)
 
     def write(self, message):
