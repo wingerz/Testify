@@ -59,9 +59,10 @@ class JSONReporter(test_reporter.TestReporter):
             out_result['bucket_count'] = self.options.bucket_count
 
         out_result['name'] = "%s.%s" % (result.test_method.im_class.__name__, result.test_method.__name__)
-        out_result['start_time'] = str(result.start_time)
-        out_result['end_time'] = str(result.end_time)
-        out_result['run_time'] = str(result.run_time)
+        out_result['module'] = result.test_method_module
+        out_result['start_time'] = result.start_time
+        out_result['end_time'] = result.end_time
+        out_result['run_time'] = result.run_time
 
         # Classify the test
         if test_case.is_fixture_method(result.test_method):
