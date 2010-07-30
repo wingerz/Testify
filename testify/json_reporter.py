@@ -1,4 +1,5 @@
 import logging
+import time
 
 import simplejson
 
@@ -58,10 +59,10 @@ class JSONReporter(test_reporter.TestReporter):
         if self.options.bucket_count is not None:
             out_result['bucket_count'] = self.options.bucket_count
 
-        out_result['name'] = "%s.%s" % (result.test_method.im_class.__name__, result.test_method.__name__)
-        out_result['start_time'] = str(result.start_time)
-        out_result['end_time'] = str(result.end_time)
-        out_result['run_time'] = str(result.run_time)
+        out_result['name'] = '%s %s.%s' % (result.test_method.__module__, result.test_method.im_class.__name__, result.test_method.__name__)
+        out_result['start_time'] = time.mktime(result.start_time.timetuple())
+        out_result['end_time'] = time.mktime(result.end_time.timetuple())
+        out_result['run_time'] = result.run_time.seconds + float(result.run_time.microseconds) / 1000000
 
         # Classify the test
         if test_case.is_fixture_method(result.test_method):
