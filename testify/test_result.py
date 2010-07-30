@@ -15,7 +15,7 @@
 
 """This module contains the TestResult class, each instance of which holds status information for a single test method."""
 __testify = 1
-import datetime
+import time
 
 class TestResult(object):
     def __init__(self, test_method):
@@ -26,11 +26,11 @@ class TestResult(object):
         self.complete = False
 
     def start(self):
-        self.start_time = datetime.datetime.now()
+        self.start_time = time.time()
 
     def _complete(self):
         self.complete = True
-        self.end_time = datetime.datetime.now()
+        self.end_time = time.time()
         self.run_time = self.end_time - self.start_time
 
     def end_in_failure(self, exception_info):
@@ -63,4 +63,4 @@ class TestResult(object):
             self.exception_info = exception_info
 
     def normalized_run_time(self):
-        return "%.2fs" % (self.run_time.seconds + (self.run_time.microseconds / 1000000.0))
+        return "%.2fs" % (self.run_time)
