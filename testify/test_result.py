@@ -63,4 +63,4 @@ class TestResult(object):
             self.exception_info = exception_info
 
     def normalized_run_time(self):
-        return "%.2fs" % (self.run_time)
+        return "%.2fs" % (self.run_time.seconds + (self.run_time.microseconds / 1000000.0))
