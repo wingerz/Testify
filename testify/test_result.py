@@ -22,7 +22,7 @@ class TestResult(object):
         super(TestResult, self).__init__(self)
         self.test_method = test_method
         self.test_method_name = test_method.__name__
-		self.test_method_module = test_method.__module__
+        self.test_method_module = test_method.__module__
         self.success = self.failure = self.error = self.incomplete = self.unexpected_success = self.expected_failure = None
         self.complete = False
 
